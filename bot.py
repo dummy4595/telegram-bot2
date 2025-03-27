@@ -8,30 +8,32 @@ from aiogram.filters import Command
 from dotenv import load_dotenv
 import aiohttp
 
-# Загружаем переменные окружения
+# ✅ Загружаем переменные окружения
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Прокси данные (если нужны)
+# ✅ Проверяем, загружены ли ключи
+if not BOT_TOKEN:
+    raise ValueError("❌ Ошибка! Токен Telegram-бота не загружен. Проверь .env файл.")
+if not OPENAI_API_KEY:
+    raise ValueError("❌ Ошибка! API-ключ OpenAI не загружен. Проверь .env файл.")
+
+# ✅ Настраиваем логирование
+logging.basicConfig(level=logging.INFO)
+
+# ✅ Настраиваем OpenAI API
+openai.api_key = OPENAI_API_KEY
+
+# ✅ Прокси (если нужно)
 PROXY_LOGIN = os.getenv("PROXY_LOGIN")
 PROXY_PASSWORD = os.getenv("PROXY_PASSWORD")
 PROXY_IP = os.getenv("PROXY_IP")
 PROXY_PORT = os.getenv("PROXY_PORT")
 
-# Формируем строку прокси (если данные есть)
-if PROXY_IP and PROXY_PORT and PROXY_LOGIN and PROXY_PASSWORD:
-    PROXY_URL = f"http://{PROXY_LOGIN}:{PROXY_PASSWORD}@{PROXY_IP}:{PROXY_PORT}"
-else:
-    PROXY_URL = None
+PROXY_URL = f"http://{PROXY_LOGIN}:{PROXY_PASSWORD}@{PROXY_IP}:{PROXY_PORT}" if PROXY_IP and PROXY_PORT and PROXY_LOGIN and PROXY_PASSWORD else None
 
-# Настраиваем OpenAI API
-openai.api_key = OPENAI_API_KEY
-
-# Включаем логирование
-logging.basicConfig(level=logging.INFO)
-
-# Создаём бота и диспетчер
+# ✅ Функция создания бота и сессии
 async def create_bot():
     connector = aiohttp.TCPConnector(ssl=False)  # Исправляем ошибку с loop
     session = aiohttp.ClientSession(connector=connector)
@@ -41,13 +43,13 @@ async def create_bot():
     
     return bot, dp, session
 
-# Обработчик команды /start
+# ✅ Обработчик команды /start
 async def start_handler(message: Message):
     await message.answer("👋 Привет! Я бот ChatGPT в Telegram. Напиши мне что-нибудь, и я отвечу!\n\n"
                          "📌 Для проверки домашнего задания используй команду:\n"
                          "`/check [твой текст]`")
 
-# Обработчик команды /check (проверка ДЗ)
+# ✅ Обработчик команды /check (проверка ДЗ)
 async def check_homework(message: Message):
     text = message.text.replace("/check", "").strip()
 
@@ -71,7 +73,7 @@ async def check_homework(message: Message):
 
     await message.answer(reply_text)
 
-# Обычные вопросы (ChatGPT-режим)
+# ✅ Обработчик обычных сообщений (ChatGPT)
 async def chat_with_gpt(message: Message):
     try:
         response = await openai.ChatCompletion.acreate(
@@ -86,7 +88,7 @@ async def chat_with_gpt(message: Message):
 
     await message.answer(reply_text)
 
-# Запуск бота
+# ✅ Запуск бота
 async def main():
     bot, dp, session = await create_bot()
 
@@ -100,7 +102,7 @@ async def main():
     finally:
         await session.close()  # Корректное закрытие сессии
 
-# Запуск
+# ✅ Запуск
 if __name__ == "__main__":
     import sys
 
@@ -108,3 +110,4 @@ if __name__ == "__main__":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     asyncio.run(main())
+
