@@ -58,12 +58,19 @@ async def check_homework(message: Message):
         return
 
     try:
+
         response = await openai.ChatCompletion.acreate(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "Ты — эксперт, который проверяет домашние задания."},
                 {"role": "user", "content": f"Проверь это домашнее задание и укажи ошибки: {text}"}
             ]
+
+        openai.api_key = OPENAI_API_KEY  # ✅ Устанавливаем API-ключ OpenAI
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": message.text}]
+            
         )
         reply_text = response["choices"][0]["message"]["content"]
     except openai.OpenAIError as e:
