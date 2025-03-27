@@ -45,6 +45,7 @@ async def create_bot():
 
 # ✅ Обработчик команды /start
 async def start_handler(message: Message):
+
     await message.answer("👋 Привет! Я бот ChatGPT в Telegram. Напиши мне что-нибудь, и я отвечу!\n\n"
                          "📌 Для проверки домашнего задания используй команду:\n"
                          "`/check [твой текст]`")
@@ -94,6 +95,25 @@ async def chat_with_gpt(message: Message):
         reply_text = f"❌ Общая ошибка: {str(e)}"
 
     await message.answer(reply_text)
+    await message.answer("👋 Привет, я помощник учителя!\nОтправь мне текст домашнего задания, и я помогу его проверить.")
+
+# ✅ Обработчик проверки домашнего задания
+@dp.message()
+async def check_homework_handler(message: Message):
+    try:
+        openai.api_key = OPENAI_API_KEY
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Ты помощник учителя, проверяющий домашние задания."},
+                {"role": "user", "content": f"Проверь это домашнее задание: {message.text}"}
+            ]
+        )
+        reply_text = response["choices"][0]["message"]["content"]
+        await message.answer(f"📚 Отчет о проверке:\n{reply_text}")
+    except Exception as e:
+        await message.answer("❌ Ошибка при проверке ДЗ! Попробуй позже.")
+        logging.error(f"Ошибка OpenAI: {e}")
 
 # ✅ Запуск бота
 async def main():
@@ -117,4 +137,3 @@ if __name__ == "__main__":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     asyncio.run(main())
-
