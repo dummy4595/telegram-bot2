@@ -33,23 +33,27 @@ PROXY_PORT = os.getenv("PROXY_PORT")
 
 PROXY_URL = f"http://{PROXY_LOGIN}:{PROXY_PASSWORD}@{PROXY_IP}:{PROXY_PORT}" if PROXY_IP and PROXY_PORT and PROXY_LOGIN and PROXY_PASSWORD else None
 
+
 # ✅ Функция создания бота и сессии
 async def create_bot():
     connector = aiohttp.TCPConnector(ssl=False)  # Исправляем ошибку с loop
     session = aiohttp.ClientSession(connector=connector)
-    
+
     bot = Bot(token=BOT_TOKEN, proxy=PROXY_URL) if PROXY_URL else Bot(token=BOT_TOKEN)
     dp = Dispatcher()
-    
+
     return bot, dp, session
+
+
+# ✅ Проверяем загрузку ключей
+print(f"BOT_TOKEN: {BOT_TOKEN[:5]}... (скрыт для безопасности)")
+print(f"OPENAI_API_KEY: {OPENAI_API_KEY[:5]}... (скрыт для безопасности)")
+
 
 # ✅ Обработчик команды /start
 async def start_handler(message: Message):
+    await message.answer("👋 Привет! Я ChatGPT-бот 🤖\nОтправь мне домашнее задание, и я помогу проверить его!")
 
-
-    await message.answer("👋 Привет! Я бот ChatGPT в Telegram. Напиши мне что-нибудь, и я отвечу!\n\n"
-                         "📌 Для проверки домашнего задания используй команду:\n"
-                         "`/check [твой текст]`")
 
 # ✅ Обработчик команды /check (проверка ДЗ)
 async def check_homework(message: Message):
@@ -60,19 +64,12 @@ async def check_homework(message: Message):
         return
 
     try:
-
         response = await openai.ChatCompletion.acreate(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "Ты — эксперт, который проверяет домашние задания."},
                 {"role": "user", "content": f"Проверь это домашнее задание и укажи ошибки: {text}"}
             ]
-
-        openai.api_key = OPENAI_API_KEY  # ✅ Устанавливаем API-ключ OpenAI
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": message.text}]
-            
         )
         reply_text = response["choices"][0]["message"]["content"]
     except openai.OpenAIError as e:
@@ -82,45 +79,22 @@ async def check_homework(message: Message):
 
     await message.answer(reply_text)
 
-# ✅ Обработчик обычных сообщений (ChatGPT)
-async def chat_with_gpt(message: Message):
-    try:
-        response = await openai.ChatCompletion.acreate(
-            model="gpt-4",
-            messages=[{"role": "user", "content": message.text}]
-        )
-        reply_text = response["choices"][0]["message"]["content"]
-    except openai.OpenAIError as e:
-        reply_text = f"❌ Ошибка: {str(e)}"
-    except Exception as e:
-        reply_text = f"❌ Общая ошибка: {str(e)}"
-    await message.answer(reply_text)
-    await message.answer("👋 Привет, я помощник учителя!\nОтправь мне текст домашнего задания, и я помогу его проверить.")
-    await message.answer("👋 Привет! Я бот-помощник учителя.\nОтправь мне задание, и я попробую его проверить!")
 
-# ✅ Функция проверки ДЗ через OpenAI
-async def check_homework(task_text: str) -> str:
+# ✅ Обработчик сообщений через OpenAI
+@dp.message()
+async def chatgpt_handler(message: Message):
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Ты помощник учителя. Проверяй домашние задания учеников."},
-                {"role": "user", "content": task_text}
-            ],
-            api_key=OPENAI_API_KEY  # Передача API-ключа
+            messages=[{"role": "user", "content": message.text}],
+            api_key=OPENAI_API_KEY
         )
-        return response["choices"][0]["message"]["content"]
+        reply_text = response["choices"][0]["message"]["content"]
+        await message.answer(reply_text)
     except Exception as e:
+        await message.answer("❌ Ошибка при проверке ДЗ! Попробуй позже.")
         logging.error(f"Ошибка OpenAI: {e}")
-        return "❌ Ошибка при проверке ДЗ! Попробуй позже."
 
-# ✅ Обработчик сообщений
-@dp.message()
-async def message_handler(message: Message):
-    logging.info(f"Получено сообщение: {message.text}")
-    
-    reply_text = await check_homework(message.text)
-    await message.answer(reply_text)
 
 # ✅ Запуск бота
 async def main():
@@ -129,12 +103,13 @@ async def main():
     # Регистрация обработчиков
     dp.message.register(start_handler, Command("start"))
     dp.message.register(check_homework, Command("check"))
-    dp.message.register(chat_with_gpt)
+    dp.message.register(chatgpt_handler)
 
     try:
         await dp.start_polling(bot)
     finally:
         await session.close()  # Корректное закрытие сессии
+
 
 # ✅ Запуск
 if __name__ == "__main__":
