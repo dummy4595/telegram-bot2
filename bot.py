@@ -20,12 +20,12 @@ PROXY_IP = os.getenv("PROXY_IP")
 PROXY_PORT = os.getenv("PROXY_PORT")
 
 # Формируем строку прокси (если данные есть)
-if PROXY_IP and PROXY_PORT and PROXY_LOGIN and PROXY_PASSWORD:
-    PROXY_URL = f"http://{PROXY_LOGIN}:{PROXY_PASSWORD}@{PROXY_IP}:{PROXY_PORT}"
+if PROXY_IP and PROXY_PORT:
+    PROXY_URL = f"http://{PROXY_IP}:{PROXY_PORT}"
 else:
     PROXY_URL = None
 
-# Настраиваем OpenAI API
+# Настроим OpenAI API
 openai.api_key = OPENAI_API_KEY
 
 # Включаем логирование
@@ -33,10 +33,17 @@ logging.basicConfig(level=logging.INFO)
 
 # Создаём бота и диспетчер
 async def create_bot():
-    connector = aiohttp.TCPConnector(ssl=False)  # Исправляем ошибку с loop
-    session = aiohttp.ClientSession(connector=connector)
+    # Настройка aiohttp Connector без прокси
+    connector = aiohttp.TCPConnector(ssl=False)
     
-    bot = Bot(token=BOT_TOKEN, proxy=PROXY_URL) if PROXY_URL else Bot(token=BOT_TOKEN)
+    # Если прокси нужно с аутентификацией, создаем BasicAuth
+    if PROXY_URL and PROXY_LOGIN and PROXY_PASSWORD:
+        auth = aiohttp.BasicAuth(PROXY_LOGIN, PROXY_PASSWORD)
+        session = aiohttp.ClientSession(connector=connector, proxy=PROXY_URL, proxy_auth=auth)
+    else:
+        session = aiohttp.ClientSession(connector=connector, proxy=PROXY_URL)
+    
+    bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
     
     return bot, dp, session
@@ -58,7 +65,7 @@ async def check_homework(message: Message):
     try:
         response = await openai.ChatCompletion.acreate(
             model="gpt-4",
-            messages=[
+            messages=[ 
                 {"role": "system", "content": "Ты — эксперт, который проверяет домашние задания."},
                 {"role": "user", "content": f"Проверь это домашнее задание и укажи ошибки: {text}"}
             ]
@@ -98,7 +105,8 @@ async def main():
     try:
         await dp.start_polling(bot)
     finally:
-        await session.close()  # Корректное закрытие сессии
+        await bot.close()  # Закрытие сессии бота
+        await session.close()  # Закрытие сессии aiohttp
 
 # Запуск
 if __name__ == "__main__":
