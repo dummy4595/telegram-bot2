@@ -1,59 +1,69 @@
 import logging
-import asyncio
+import openai
 import os
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
 from aiogram.types import Message
+from aiogram.utils import executor
 from dotenv import load_dotenv
-import openai
 
-# ✅ Загружаем переменные из .env
+# Загружаем переменные окружения
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# ✅ Проверяем, загружены ли ключи
-if not BOT_TOKEN:
-    raise ValueError("❌ Ошибка! Токен Telegram-бота не загружен. Проверь .env файл.")
-if not OPENAI_API_KEY:
-    raise ValueError("❌ Ошибка! API-ключ OpenAI не загружен. Проверь .env файл.")
+# Настраиваем OpenAI API
+openai.api_key = OPENAI_API_KEY
 
-# ✅ Настраиваем логирование
+# Включаем логирование
 logging.basicConfig(level=logging.INFO)
 
-# ✅ Создаем бота и диспетчер
+# Создаём бота
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
+dp = Dispatcher(bot)
 
-# ✅ Проверяем загрузку ключей
-print(f"BOT_TOKEN: {BOT_TOKEN[:5]}... (скрыт для безопасности)")
-print(f"OPENAI_API_KEY: {OPENAI_API_KEY[:5]}... (скрыт для безопасности)")
+# Обработчик команды /start
+@dp.message_handler(commands=["start"])
+async def start(message: Message):
+    await message.reply("Привет! Я бот ChatGPT в Telegram. Напиши мне что-нибудь, и я отвечу!\n\n"
+                        "Если хочешь, чтобы я проверил твоё ДЗ, отправь его с командой /check.")
 
-# ✅ Обработчик команды /start
-@dp.message(Command("start"))
-async def start_handler(message: Message):
-    await message.answer("👋 Привет! Я ChatGPT-бот 🤖\nОтправь мне домашнее задание, и я помогу проверить его!")
+# Обработчик проверки ДЗ
+@dp.message_handler(commands=["check"])
+async def check_homework(message: Message):
+    text = message.text.replace("/check", "").strip()
+    
+    if not text:
+        await message.reply("Пожалуйста, отправь текст домашнего задания после команды /check.")
+        return
 
-# ✅ Обработчик сообщений через OpenAI
-@dp.message()
-async def chatgpt_handler(message: Message):
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": message.text}],
-            api_key=OPENAI_API_KEY
+            model="gpt-4",  # Можно заменить на gpt-3.5-turbo
+            messages=[
+                {"role": "system", "content": "Ты — эксперт, который проверяет домашние задания."},
+                {"role": "user", "content": f"Проверь это домашнее задание и укажи ошибки: {text}"}
+            ]
         )
         reply_text = response["choices"][0]["message"]["content"]
-        await message.answer(reply_text)
     except Exception as e:
-        await message.answer("❌ Ошибка при проверке ДЗ! Попробуй позже.")
-        logging.error(f"Ошибка OpenAI: {e}")
+        reply_text = f"Ошибка при проверке ДЗ: {e}"
 
-# ✅ Запуск бота
-async def main():
-    await dp.start_polling(bot)
+    await message.reply(reply_text)
 
+# Обычные вопросы (ChatGPT-режим)
+@dp.message_handler()
+async def chat_with_gpt(message: Message):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": message.text}]
+        )
+        reply_text = response["choices"][0]["message"]["content"]
+    except Exception as e:
+        reply_text = f"Ошибка: {e}"
+
+    await message.reply(reply_text)
+
+# Запуск бота
 if __name__ == "__main__":
-    asyncio.run(main())
-
-
+    executor.start_polling(dp, skip_updates=True)
