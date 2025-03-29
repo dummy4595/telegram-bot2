@@ -25,24 +25,28 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+# ✅ Проверяем загрузку ключей
+print(f"BOT_TOKEN: {BOT_TOKEN[:5]}... (скрыт для безопасности)")
+print(f"OPENAI_API_KEY: {OPENAI_API_KEY[:5]}... (скрыт для безопасности)")
+
 # ✅ Обработчик команды /start
 @dp.message(Command("start"))
 async def start_handler(message: Message):
-    await message.answer("👋 Привет! Я ChatGPT-бот 🤖\nЗадавай мне любые вопросы!")
+    await message.answer("👋 Привет! Я ChatGPT-бот 🤖\nОтправь мне домашнее задание, и я помогу проверить его!")
 
 # ✅ Обработчик сообщений через OpenAI
 @dp.message()
 async def chatgpt_handler(message: Message):
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Используй gpt-4, если есть доступ
+            model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": message.text}],
-            api_key=OPENAI_API_KEY  # Передача API-ключа
+            api_key=OPENAI_API_KEY
         )
         reply_text = response["choices"][0]["message"]["content"]
         await message.answer(reply_text)
     except Exception as e:
-        await message.answer("❌ Ошибка при обращении к ИИ!")
+        await message.answer("❌ Ошибка при проверке ДЗ! Попробуй позже.")
         logging.error(f"Ошибка OpenAI: {e}")
 
 # ✅ Запуск бота
@@ -51,3 +55,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
