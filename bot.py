@@ -1,10 +1,11 @@
 import logging
 import openai
-import os
 import asyncio
+import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
 from aiogram.filters import Command
+from aiogram import F
 from dotenv import load_dotenv
 
 # Загружаем переменные окружения
@@ -28,7 +29,7 @@ async def start(message: Message):
     await message.answer("Привет! Я бот ChatGPT в Telegram. Напиши мне что-нибудь, и я отвечу!\n\n"
                          "Если хочешь, чтобы я проверил твоё ДЗ, отправь его с командой /check.")
 
-# Обработчик команды /check (проверка домашнего задания)
+# Обработчик проверки ДЗ
 @dp.message(Command("check"))
 async def check_homework(message: Message):
     text = message.text.replace("/check", "").strip()
@@ -39,7 +40,7 @@ async def check_homework(message: Message):
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-4",  # Или "gpt-3.5-turbo"
             messages=[
                 {"role": "system", "content": "Ты — эксперт, который проверяет домашние задания."},
                 {"role": "user", "content": f"Проверь это домашнее задание и укажи ошибки: {text}"}
@@ -51,8 +52,8 @@ async def check_homework(message: Message):
 
     await message.answer(reply_text)
 
-# Обработчик обычных сообщений (ChatGPT-режим)
-@dp.message()
+# Обычные вопросы (ChatGPT-режим)
+@dp.message(F.text)
 async def chat_with_gpt(message: Message):
     try:
         response = openai.ChatCompletion.create(
@@ -65,7 +66,7 @@ async def chat_with_gpt(message: Message):
 
     await message.answer(reply_text)
 
-# Функция для запуска бота (aiogram 3.x)
+# Запуск бота
 async def main():
     await dp.start_polling(bot)
 
