@@ -1,7 +1,7 @@
+import asyncio
 import logging
 import openai
 import os
-import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
 from aiogram.filters import Command
@@ -12,38 +12,41 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+# Настраиваем OpenAI API
+openai.api_key = OPENAI_API_KEY
+
+# Включаем логирование
+logging.basicConfig(level=logging.INFO)
+
 # Создаём бота и диспетчер
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Инициализация OpenAI клиента
-client = openai.OpenAI(api_key=OPENAI_API_KEY)
-
 # Обработчик команды /start
 @dp.message(Command("start"))
 async def start(message: Message):
-    await message.answer("👋 Привет! Я бот ChatGPT в Telegram.\n\n"
-                         "📌 Отправь мне любое сообщение, и я отвечу.\n"
-                         "📚 Для проверки домашнего задания используй команду: /check ТЕКСТ")
+    await message.answer("👋 Привет! Я бот ChatGPT в Telegram. Напиши мне что-нибудь, и я отвечу!\n\n"
+                         "📌 Для проверки домашнего задания используй команду:\n"
+                         "`/check [твой текст]`")
 
-# Обработчик команды /check для проверки ДЗ
+# Обработчик команды /check (проверка ДЗ)
 @dp.message(Command("check"))
 async def check_homework(message: Message):
     text = message.text.replace("/check", "").strip()
-
+    
     if not text:
-        await message.answer("❗ Пожалуйста, отправь текст домашнего задания после команды /check.")
+        await message.answer("⚠️ Пожалуйста, отправь текст домашнего задания после команды `/check`.")
         return
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+        response = await openai.ChatCompletion.acreate(
+            model="gpt-3.5-turbo",  # Можно заменить на "gpt-4"
             messages=[
-                {"role": "system", "content": "Ты — учитель, который проверяет домашние задания."},
+                {"role": "system", "content": "Ты — эксперт, который проверяет домашние задания."},
                 {"role": "user", "content": f"Проверь это домашнее задание и укажи ошибки: {text}"}
             ]
         )
-        reply_text = response.choices[0].message.content
+        reply_text = response["choices"][0]["message"]["content"]
     except Exception as e:
         reply_text = f"❌ Ошибка при проверке ДЗ: {e}"
 
@@ -53,21 +56,20 @@ async def check_homework(message: Message):
 @dp.message()
 async def chat_with_gpt(message: Message):
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+        response = await openai.ChatCompletion.acreate(
+            model="gpt-3.5-turbo",  # Или "gpt-4"
             messages=[{"role": "user", "content": message.text}]
         )
-        reply_text = response.choices[0].message.content
+        reply_text = response["choices"][0]["message"]["content"]
     except Exception as e:
         reply_text = f"❌ Ошибка: {e}"
 
     await message.answer(reply_text)
 
-# Функция запуска бота
+# Запуск бота
 async def main():
-    logging.info("✅ Бот запущен!")
     await dp.start_polling(bot)
 
-# Запускаем бота
 if __name__ == "__main__":
     asyncio.run(main())
+
