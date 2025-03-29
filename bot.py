@@ -12,15 +12,12 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Настраиваем OpenAI API
-openai.api_key = OPENAI_API_KEY
-
-# Включаем логирование
-logging.basicConfig(level=logging.INFO)
-
 # Создаём бота и диспетчер
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+# Инициализация OpenAI клиента
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 # Обработчик команды /start
 @dp.message(Command("start"))
@@ -39,14 +36,14 @@ async def check_homework(message: Message):
         return
 
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Используем GPT-3.5-Turbo
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Ты — учитель, который проверяет домашние задания."},
                 {"role": "user", "content": f"Проверь это домашнее задание и укажи ошибки: {text}"}
             ]
         )
-        reply_text = response["choices"][0]["message"]["content"]
+        reply_text = response.choices[0].message.content
     except Exception as e:
         reply_text = f"❌ Ошибка при проверке ДЗ: {e}"
 
@@ -56,11 +53,11 @@ async def check_homework(message: Message):
 @dp.message()
 async def chat_with_gpt(message: Message):
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": message.text}]
         )
-        reply_text = response["choices"][0]["message"]["content"]
+        reply_text = response.choices[0].message.content
     except Exception as e:
         reply_text = f"❌ Ошибка: {e}"
 
