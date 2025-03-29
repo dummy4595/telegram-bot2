@@ -8,33 +8,31 @@ from aiogram.filters import Command
 from dotenv import load_dotenv
 import aiohttp
 
-# ✅ Загружаем переменные из .env
+# Загружаем переменные окружения
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# ✅ Проверяем, загружены ли ключи
-if not BOT_TOKEN:
-    raise ValueError("❌ Ошибка! Токен Telegram-бота не загружен. Проверь .env файл.")
-if not OPENAI_API_KEY:
-    raise ValueError("❌ Ошибка! API-ключ OpenAI не загружен. Проверь .env файл.")
-
-# ✅ Настраиваем логирование
-logging.basicConfig(level=logging.INFO)
-
-# ✅ Настраиваем OpenAI API
-openai.api_key = OPENAI_API_KEY
-
-# ✅ Прокси (если нужно)
+# Прокси данные (если нужны)
 PROXY_LOGIN = os.getenv("PROXY_LOGIN")
 PROXY_PASSWORD = os.getenv("PROXY_PASSWORD")
 PROXY_IP = os.getenv("PROXY_IP")
 PROXY_PORT = os.getenv("PROXY_PORT")
 
-PROXY_URL = f"http://{PROXY_LOGIN}:{PROXY_PASSWORD}@{PROXY_IP}:{PROXY_PORT}" if PROXY_IP and PROXY_PORT and PROXY_LOGIN and PROXY_PASSWORD else None
+# Формируем строку прокси (если данные есть)
+if PROXY_IP and PROXY_PORT and PROXY_LOGIN and PROXY_PASSWORD:
+    PROXY_URL = f"http://{PROXY_LOGIN}:{PROXY_PASSWORD}@{PROXY_IP}:{PROXY_PORT}"
+else:
+    PROXY_URL = None
+
+# Настраиваем OpenAI API
+openai.api_key = OPENAI_API_KEY
+
+# Включаем логирование
+logging.basicConfig(level=logging.INFO)
 
 
-# ✅ Функция создания бота и сессии
+# Создаём бота и диспетчер
 async def create_bot():
     connector = aiohttp.TCPConnector(ssl=False)  # Исправляем ошибку с loop
     session = aiohttp.ClientSession(connector=connector)
@@ -45,17 +43,14 @@ async def create_bot():
     return bot, dp, session
 
 
-# ✅ Проверяем загрузку ключей
-print(f"BOT_TOKEN: {BOT_TOKEN[:5]}... (скрыт для безопасности)")
-print(f"OPENAI_API_KEY: {OPENAI_API_KEY[:5]}... (скрыт для безопасности)")
-
-
-# ✅ Обработчик команды /start
+# Обработчик команды /start
 async def start_handler(message: Message):
-    await message.answer("👋 Привет! Я ChatGPT-бот 🤖\nОтправь мне домашнее задание, и я помогу проверить его!")
+    await message.answer("👋 Привет! Я бот ChatGPT в Telegram. Напиши мне что-нибудь, и я отвечу!\n\n"
+                         "📌 Для проверки домашнего задания используй команду:\n"
+                         "`/check [твой текст]`")
 
 
-# ✅ Обработчик команды /check (проверка ДЗ)
+# Обработчик команды /check (проверка ДЗ)
 async def check_homework(message: Message):
     text = message.text.replace("/check", "").strip()
 
@@ -80,30 +75,30 @@ async def check_homework(message: Message):
     await message.answer(reply_text)
 
 
-# ✅ Обработчик сообщений через OpenAI
-@dp.message()
-async def chatgpt_handler(message: Message):
+# Обычные вопросы (ChatGPT-режим)
+async def chat_with_gpt(message: Message):
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": message.text}],
-            api_key=OPENAI_API_KEY
+        response = await openai.ChatCompletion.acreate(
+            model="gpt-4",
+            messages=[{"role": "user", "content": message.text}]
         )
         reply_text = response["choices"][0]["message"]["content"]
-        await message.answer(reply_text)
+    except openai.OpenAIError as e:
+        reply_text = f"❌ Ошибка: {str(e)}"
     except Exception as e:
-        await message.answer("❌ Ошибка при проверке ДЗ! Попробуй позже.")
-        logging.error(f"Ошибка OpenAI: {e}")
+        reply_text = f"❌ Общая ошибка: {str(e)}"
+
+    await message.answer(reply_text)
 
 
-# ✅ Запуск бота
+# Запуск бота
 async def main():
     bot, dp, session = await create_bot()
 
     # Регистрация обработчиков
     dp.message.register(start_handler, Command("start"))
     dp.message.register(check_homework, Command("check"))
-    dp.message.register(chatgpt_handler)
+    dp.message.register(chat_with_gpt)
 
     try:
         await dp.start_polling(bot)
@@ -111,7 +106,7 @@ async def main():
         await session.close()  # Корректное закрытие сессии
 
 
-# ✅ Запуск
+# Запуск
 if __name__ == "__main__":
     import sys
 
