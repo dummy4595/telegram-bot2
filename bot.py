@@ -12,31 +12,15 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+# Создаём OpenAI клиент
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
+
 # Включаем логирование
 logging.basicConfig(level=logging.INFO)
 
 # Создаём бота и диспетчер
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-
-# Функция для запроса в OpenAI
-async def ask_openai(prompt, use_gpt4=True):
-    model = "gpt-4" if use_gpt4 else "gpt-3.5-turbo"
-    
-    try:
-        response = await openai.ChatCompletion.acreate(
-            model=model,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response["choices"][0]["message"]["content"]
-    
-    except openai.error.RateLimitError:
-        if use_gpt4:  # Если GPT-4 дал лимит, пробуем GPT-3.5
-            return await ask_openai(prompt, use_gpt4=False)
-        return "❌ Лимит запросов исчерпан. Попробуйте позже или используйте GPT-3.5."
-
-    except Exception as e:
-        return f"❌ Ошибка: {e}"
 
 # Обработчик команды /start
 @dp.message(Command("start"))
@@ -54,13 +38,36 @@ async def check_homework(message: Message):
         await message.answer("⚠️ Пожалуйста, отправь текст домашнего задания после команды `/check`.")
         return
 
-    reply_text = await ask_openai(f"Проверь это домашнее задание и укажи ошибки: {text}")
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4",  # Используем GPT-4
+            messages=[
+                {"role": "system", "content": "Ты — эксперт, который проверяет домашние задания."},
+                {"role": "user", "content": f"Проверь это домашнее задание и укажи ошибки: {text}"}
+            ]
+        )
+        reply_text = response.choices[0].message.content
+    except openai.OpenAIError as e:
+        reply_text = f"❌ Ошибка при проверке ДЗ: {e}"
+    except Exception as e:
+        reply_text = f"❌ Неизвестная ошибка: {e}"
+
     await message.answer(reply_text)
 
 # Обычные вопросы (ChatGPT-режим)
 @dp.message()
 async def chat_with_gpt(message: Message):
-    reply_text = await ask_openai(message.text)
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": message.text}]
+        )
+        reply_text = response.choices[0].message.content
+    except openai.OpenAIError as e:
+        reply_text = f"❌ Ошибка: {e}"
+    except Exception as e:
+        reply_text = f"❌ Неизвестная ошибка: {e}"
+
     await message.answer(reply_text)
 
 # Запуск бота
